@@ -5,7 +5,9 @@
 * 数据存储方面：它能够存储很大的数据集，并且对数据完整性、格式要求并不严格。
 * 数据处理方面：因为Hive语句最终会生成MapReduce任务去计算，所以不适用于实时计算的场景，它适用于离线分析。
 ## Hive 架构
-![](https://github.com/chenxh/interviews/blob/main/imgs/hive_1.png "")
+
+![](https://github.com/chenxh/interviews/blob/main/imgs/hive_1.jpg "")
+
 **Cli命令行**
 通过命令行运行 HiveSql。 不通过 HiveServer2。
 
