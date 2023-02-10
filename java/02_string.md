@@ -73,7 +73,7 @@ String s = "ab";
 常量池中主要存放两大类常量：字面量（literal）和符号引用（symbolic references）。
 Class是用来保存常量的一个媒介场所，并且是一个中间场所。在JVM真的运行时，需要把常量池中的常量加载到内存中。
 
-![](https://github.com/chenxh/interviews/blob/main/imgs/string_1.png "")
+![](https://github.com/chenxh/interviews/blob/main/imgs/string_1.jpg "")
 
 ### 运行时常量池
 运行时常量池（ Runtime Constant Pool）是每一个类或接口的常量池（ Constant_Pool）的运行时表示形式。
