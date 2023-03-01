@@ -1,6 +1,8 @@
 ## 存储体系架构
 ![](https://github.com/chenxh/interviews/blob/main/imgs/spark-blockmanager.png  "spark-blockmanager")
 
+
+https://zhuanlan.zhihu.com/p/338437439
 ## BlockManager
 Spark存储体系是各个 Driver 和 Executor 实例中的BlockManager所组成的。
 * driver 端的 BlockManager 持有 BlockManagerMasterEndpoint 对各个节点上的BlockManager、BlockManager与Executor的映射关系及Block位置信息（即Block所在的BlockManager）等进行管理。
