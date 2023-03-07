@@ -85,7 +85,7 @@ Serializer支持relocation。Serializer支持relocation是指，Serializer可以
 * 生成 MapStatus 。
 
 流程图：
-!()[https://github.com/chenxh/interviews/blob/main/imgs/SortShuffleWriter.jpg "SortShuffleWriter.jpg"]
+![](https://github.com/chenxh/interviews/blob/main/imgs/SortShuffleWriter.jpg "SortShuffleWriter.jpg")
 
 
 ### BypassMergeSortShuffleWriter
@@ -104,14 +104,13 @@ Serializer支持relocation。Serializer支持relocation是指，Serializer可以
 
 数据流程：
 
-!()[https://github.com/chenxh/interviews/blob/main/imgs/BypassMergeSortShuffleWriter.jpg "BypassMergeSortShuffleWriter.jpg"]
+![](https://github.com/chenxh/interviews/blob/main/imgs/BypassMergeSortShuffleWriter.jpg "BypassMergeSortShuffleWriter.jpg")
 
 ### UnsafeShuffleWriter
 UnsafeShuffleWriter是ShuffleWriter的实现类之一，底层使用ShuffleExternalSorter作为外部排序器，所以UnsafeShuffleWriter不具备SortShuffleWriter的聚合功能。UnsafeShuffle Writer将使用Tungsten的内存作为缓存，以提高写入磁盘的性能。
 
 
-
-!()[https://github.com/chenxh/interviews/blob/main/imgs/spark-shuffle-unsafe.svg "spark-shuffle-unsafe.svg"]
+![](https://github.com/chenxh/interviews/blob/main/imgs/spark-shuffle-unsafe.svg "spark-shuffle-unsafe.svg")
 
 首先将数据序列化，保存在MemoryBlock中。然后将该数据的地址和对应的分区索引，保存在ShuffleInMemorySorter内存中，利用ShuffleInMemorySorter根据分区排序。当内存不足时，会触发spill操作，生成spill文件。最后会将所有的spill文件合并在同一个文件里。
 
