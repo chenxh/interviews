@@ -117,6 +117,13 @@ UnsafeShuffleWriter是ShuffleWriter的实现类之一，底层使用ShuffleExter
 整个过程可以想象成归并排序。ShuffleExternalSorter负责分片的读取数据到内存，然后利用ShuffleInMemorySorter进行排序。排序之后会将结果存储到磁盘文件中。这样就会有很多个已排序的文件， UnsafeShuffleWriter会将所有的文件合并。
 
 
+UnsafeShuffleWriterSortShuffleWriter在不允许map端合并（即ShuffleDenpendency的mapSideCombine属性为false）情况下的执行过程非常类似. SortShuffleWriter底层的PartitionedPairBuffer使用的是JVM的内存，而UnsafeShuffleWriter使用的则是Tungsten（既有可能是JVM内存，也有可能是操作系统内存）
+
+
+
+## shuffle read 
+
+
 
 
 
