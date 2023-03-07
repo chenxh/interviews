@@ -111,7 +111,9 @@ coalesce(shuffle = true) 时，**由于可以进行 shuffle，问题变为如何
       mapSideCombine: Boolean = true,
       serializer: Serializer = null): RDD[(K, C)]
 ```
-spark 使用 combineByKey 来执行 aggregate + compute() 的操作。
+spark 使用 combineByKey 来执行 aggregate + compute() 基础操作。
+
+
 
 
 ### 生成物理执行图
