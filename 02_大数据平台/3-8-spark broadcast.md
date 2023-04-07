@@ -30,6 +30,6 @@ TorrentBroadcast.scala#readBroadcastBlock()
    3. 对各个广播分片进行随机洗牌，避免对广播块的获取出现“热点”，提升性能。对洗牌后的各个广播分片依次执行下面操作。
    4. 调用BlockManager的getLocalBytes方法从本地的存储体系中获取序列化的分片广播块，如果本地可以获取到，则将分片广播块放入blocks，并且调用releaseLock方法释放此分片广播块的锁。
    5. 如果本地没有，则调用BlockManager的getRemoteBytes方法从远端的存储体系中获取分片广播块。对于获取的分片广播块再次调用calcChecksum方法计算校验和，并将此校验和与调用writeBlocks方法时存入checksums数组的校验和进行比较。如果校验和不相同，说明块的数据有损坏，此时抛出异常。
-   6. 如果校验和相同，则***调用BlockManager的putBytes方法将分片广播块写入本地存储体系，以便于当前Executor的其他任务不用再次获取分片广播块, 并且告知 blockManagerMaster***。最后将分片广播块放入blocks。
+   6. 如果校验和相同，则 ***调用BlockManager的putBytes方法将分片广播块写入本地存储体系，以便于当前Executor的其他任务不用再次获取分片广播块, 并且告知 blockManagerMaster*** 。最后将分片广播块放入blocks。
 
 TorrentBroadcast 和 Torrent下载机制类似， 刚开始只在一个 driver/executor 存储， 另外的 driver/executor 在获取值的时候，本地有就用本地，本地没有去远程获取，获取到之后会在本地存储，存储后通知blockmaster，然后再有其它 driver/executor 使用也可以从此处获取。

@@ -52,7 +52,7 @@ sparksql 执行 SQL 的主要功能类。
 2. analyzed LogicalPlan ： 解析后的逻辑执行计划， 使用 [[SessionCatalog]] 中的信息将 [[UnresolvedAttribute]] 和 [[UnresolvedRelation]] 转换为全类型对象。
 3. commandExecuted：根据运行mode， 把需要提前运行的操作先执行，例如 DDL 语句。   
 4. withCachedData LogicalPlan：添加缓存信息 TODO：
-5. optimizedPlan：优化后LogicalPlan。 使用优化器（CBO）优化 。
+5. optimizedPlan：优化后LogicalPlan。 根据规则优化。
 6. sparkPlan：Spark执行计划
 7. executedPlan ：物理执行计划。
 
@@ -161,6 +161,7 @@ def execute(plan: TreeType): TreeType = {
           continue = false
         }
 
+        // 循环跳出规则： 如果某次规则在生效后，plan 已经不改变了，就退出循环。
         if (curPlan.fastEquals(lastPlan)) {
           logTrace(
             s"Fixed point reached for batch ${batch.name} after ${iteration - 1} iterations.")
@@ -244,7 +245,194 @@ Resolution（解析）。
       extendedResolutionRules : _*),
 ```
 
-**生成物理计划**
+***Hints 解析***
+Hints 机制是在 SQL 语句通过 ```/*+ hint [ , ... ] */``` 语法优化 spark 查询计划的功能。
+其中 Join 有下面几种
+```
+BROADCAST
+SHUFFLE_MERGE
+SHUFFLE_HASH
+SHUFFLE_REPLICATE_NL
+```
+
+Join hints 的功能在 ResolveHints.ResolveJoinStrategyHints 中实现。
+```
+    def apply(plan: LogicalPlan): LogicalPlan = plan.resolveOperatorsUpWithPruning(
+      _.containsPattern(UNRESOLVED_HINT), ruleId) {
+      case h: UnresolvedHint if STRATEGY_HINT_NAMES.contains(h.name.toUpperCase(Locale.ROOT)) =>
+        if (h.parameters.isEmpty) {
+          // If there is no table alias specified, apply the hint on the entire subtree.
+          ResolvedHint(h.child, createHintInfo(h.name))
+        } else {
+          // Otherwise, find within the subtree query plans to apply the hint.
+          val relationNamesInHint = h.parameters.map {
+            case tableName: String => UnresolvedAttribute.parseAttributeName(tableName)
+            case tableId: UnresolvedAttribute => tableId.nameParts
+            case unsupported =>
+              throw QueryCompilationErrors.joinStrategyHintParameterNotSupportedError(unsupported)
+          }.toSet
+          val relationsInHintWithMatch = new mutable.HashSet[Seq[String]]
+          val applied = applyJoinStrategyHint(
+            h.child, relationNamesInHint, relationsInHintWithMatch, h.name)
+
+          // Filters unmatched relation identifiers in the hint
+          val unmatchedIdents = relationNamesInHint -- relationsInHintWithMatch
+          hintErrorHandler.hintRelationsNotFound(h.name, h.parameters, unmatchedIdents)
+          applied
+        }
+    }
+```
+1. plan.resolveOperatorsUpWithPruning 递归调用 rule 应用在子节点上，不适合规则的节点不变。 并返回新的 LogicalPlan。
+2. 如果是 hints 节点。开始处理。
+3. 如果 hints 节点没有参数， 整个子节点当成一个 table ，构建 ResolvedHint 返回
+4. 如果 hints 节点有参数，先解析 tableName，然后执行 applyJoinStrategyHint（）方法，此方法递归子节点查找 tableName 对应 table ，并创建 ResolvedHint 返回。
+
+可以看出，这里只是把 UnresolvedHint 转化为 ResolvedHint。 ResolvedHint 中包含了：1. 具体的 JoinStrategyHint（策略）2. hint 对应的 table 的 LogicalPlan。
+
+
+**SparkOptimizer 优化 LogicalPlan**
+
+主要组件 SparkOptimizer ， 继承于 Optimizer -> RuleExecutor. 
+执行逻辑和 Analyzer 类似。
+
+SparkOptimizer 提供的是逻辑上的优化。例如：
+算子下推：把算子下推的子查询，提前计算，提前过滤，加速性能。
+算子合并：多个算子合并成一个，减少计算量。
+常量折叠：常量表达式直接计算成常量值。
+
+
+SparkOptimizer 只是基于规则的优化 rule-base。
+
+**SparkPlanner 生成 SparkPlan**
+
+SparkPlanner 会使用一系列的策略来生成一组候选的物理执行计划。
+
+```
+  override def strategies: Seq[Strategy] =
+    experimentalMethods.extraStrategies ++
+      extraPlanningStrategies ++ (
+      LogicalQueryStageStrategy ::
+      PythonEvals ::
+      new DataSourceV2Strategy(session) ::
+      FileSourceStrategy ::
+      DataSourceStrategy ::
+      SpecialLimits ::
+      Aggregation ::
+      Window ::
+      JoinSelection ::
+      InMemoryScans ::
+      SparkScripts ::
+      BasicOperators :: Nil)
+```
+
+SparkPlanner.plan
+  -> SparkStrategies.plan
+    -> QueryPlanner.plan
+
+QueryPlanner.plan 传入 LogicalPlan， 返回 Iterator[PhysicalPlan]。 
+```
+ // Collect physical plan candidates.
+    val candidates = strategies.iterator.flatMap(_(plan))
+
+      // The candidates may contain placeholders marked as [[planLater]],
+    // so try to replace them by their child plans.
+    val plans = candidates.flatMap { candidate =>
+      val placeholders = collectPlaceholders(candidate)
+
+      if (placeholders.isEmpty) {
+        // Take the candidate as is because it does not contain placeholders.
+        Iterator(candidate)
+      } else {
+        // Plan the logical plan marked as [[planLater]] and replace the placeholders.
+        placeholders.iterator.foldLeft(Iterator(candidate)) {
+          case (candidatesWithPlaceholders, (placeholder, logicalPlan)) =>
+            // Plan the logical plan for the placeholder.
+            val childPlans = this.plan(logicalPlan)
+
+            candidatesWithPlaceholders.flatMap { candidateWithPlaceholders =>
+              childPlans.map { childPlan =>
+                // Replace the placeholder by the child plan
+                candidateWithPlaceholders.transformUp {
+                  case p if p.eq(placeholder) => childPlan
+                }
+              }
+            }
+        }
+      }
+    }
+
+    val pruned = prunePlans(plans)
+    assert(pruned.hasNext, s"No plan for $plan")
+    pruned
+```
+
+
+1. 调用 strategies 生成 Iterator[PhysicalPlan]。
+2. 替换 PhysicalPlan 中的标记为 planLater 的 LogicalPlan。 上一步中的每个 Strategy 只负责自己关心的 LogicalPlan， 其它的节点会在这一步递归处理。
+3. 找到  planLater 的 LogicalPlan， 然后递归 调用 strategies 生成 Iterator[PhysicalPlan]。
+   
+
+
+SparkStrategies.plan
+
+```
+  override def plan(plan: LogicalPlan): Iterator[SparkPlan] = {
+    super.plan(plan).map { p =>
+      val logicalPlan = plan match {
+        case ReturnAnswer(rootPlan) => rootPlan
+        case _ => plan
+      }
+      p.setLogicalLink(logicalPlan)
+      p
+    }
+  }
+```
+设置 LogicalLink 的值。
+
+QueryExecution.createSparkPlan()
+```
+  def createSparkPlan(
+      sparkSession: SparkSession,
+      planner: SparkPlanner,
+      plan: LogicalPlan): SparkPlan = {
+    // TODO: We use next(), i.e. take the first plan returned by the planner, here for now,
+    //       but we will implement to choose the best plan.
+    planner.plan(ReturnAnswer(plan)).next()
+  }
+```
+
+***这里只是取了第一个plan， 没有实现 cbo?***
+
+
+每个 Strategy 的功能就是生成 SparkPlan 。 SparkPlan 也是树形结构，大量的以 exec 结尾的实现就物理计划。
+在  SparkPlan 的 doExecute() 中会把 SparkPlan 转化为 RDD 运行。
+FilterExec 的 doExecute() 方法
+```
+  protected override def doExecute(): RDD[InternalRow] = {
+    val numOutputRows = longMetric("numOutputRows")
+    //子节点运行后生成RDD，再执行过滤。
+    child.execute().mapPartitionsWithIndexInternal { (index, iter) =>
+      //生成过滤条件
+      val predicate = Predicate.create(condition, child.output)
+      predicate.initialize(0)
+      iter.filter { row =>
+        val r = predicate.eval(row)
+        if (r) numOutputRows += 1
+        r
+      }
+    }
+  }
+```
+
+
+
+
+  
+
+
+
+
+
 
 
 
