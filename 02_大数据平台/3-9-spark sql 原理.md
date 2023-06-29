@@ -26,6 +26,16 @@ def sql(sqlText: String): DataFrame = withActive {
 }
 ```
 
+SQL() 方法返回 DataFrame（Dataset[Row]），DataFrame 包含了 QueryExecution。 
+
+   DataFrame.show() 会触发QueryExecution 计算， 
+
+```
+  def head(n: Int): Array[T] = withAction("head", limit(n).queryExecution)(collectFromPlan)
+```
+
+collectFromPlan 会调用 sparkPlan 的 execute() 方法。
+
 
 
 
@@ -45,6 +55,9 @@ sessionState.sqlParser.parsePlan(sqlText) 只是将 sql 语句解析为 LogicPla
  }
 ```
 
+
+
+
 **QueryExecution**
 sparksql 执行 SQL 的主要功能类。
 传入的 LogicalPlan 的处理顺序为：
@@ -55,6 +68,7 @@ sparksql 执行 SQL 的主要功能类。
 5. optimizedPlan：优化后LogicalPlan。 根据规则优化。
 6. sparkPlan：Spark执行计划
 7. executedPlan ：物理执行计划。
+8. 执行查询 executedPlan， 然后处理数据
 
 
 
@@ -425,6 +439,17 @@ FilterExec 的 doExecute() 方法
 ```
 
 
+**生成  executedPlan ：物理执行计划**
+
+生成 executedPlan 是调用下面方法实现 
+```
+ QueryExecution.prepareForExecution(preparations, sparkPlan.clone())
+```
+
+此方法主要功能是调用集合 preparations:  Seq[Rule[SparkPlan]] 中规则，修改 SparkPlan 。
+preparations 中的规则的主要能力是：
+1. 规则 InsertAdaptiveSparkPlan： 作用是在运行时根据运行时数据的统计执行优化运行。 就是适配运行，配置参数```spark.sql.adaptive.enabled=true``` 后生效。
+2. 
 
 
   
