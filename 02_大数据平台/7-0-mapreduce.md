@@ -20,7 +20,7 @@ Reduce阶段：Reduce 阶段的主要作用是 “合”，即对 Map 阶段的�
 ### Shuffle 过程
 Shuffle是指对Map任务输出结果进行分区、排序、合并、归并等处理并交给Reduce的过程。
 
-![](https://github.com/chenxh/interviews/raw/main/imgs/mp-shuffle.png"")
+![](https://github.com/chenxh/interviews/raw/main/imgs/mp-shuffle.png "")
 
 
 **Map端的Shuffle过程**
