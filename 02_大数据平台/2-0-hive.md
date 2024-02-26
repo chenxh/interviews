@@ -6,7 +6,10 @@
 * 数据处理方面：因为Hive语句最终会生成MapReduce任务去计算，所以不适用于实时计算的场景，它适用于离线分析。
 ## Hive 架构
 
-![](https://github.com/chenxh/interviews/blob/main/imgs/hive_1.jpg "")
+
+![](https://github.com/chenxh/interviews/raw/main/imgs/hive_1.jpg "")
+
+https://github.com/chenxh/interviews/raw/main/imgs/71f12473-b0d9-436b-b0ce-fce60a71a343.png
 
 **Cli命令行**
 通过命令行运行 HiveSql。 不通过 HiveServer2。
