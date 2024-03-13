@@ -45,7 +45,7 @@ partition会把整体分为两个部分。
 
 右半部分，都比t小
 
-![缓存](https://raw.githubusercontent.com/chenxh/interviews/master/05_alg/imgs/topk-select.webp.webp "图片title")
+![缓存](https://raw.githubusercontent.com/chenxh/interviews/master/05_alg/imgs/topk-select.webp "图片title")
 
 
 ***通过随机选择（randomized_select），找到arr[1, n]中第k大的数，再进行一次partition，就能得到TopK的结果。***
