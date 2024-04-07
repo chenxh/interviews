@@ -109,3 +109,33 @@ kafka读取特定消息的时间复杂度是O(1)，所以这里删除过期的�
 
 
 这套机制是建立在offset为有序的基础上，利用segment+有序offset+稀疏索引+二分查找+顺序查找等多种手段来高效的查找数据！至此，消费者就能拿到需要处理的数据进行处理了。那每个消费者又是怎么记录自己消费的位置呢？在早期的版本中，消费者将消费到的offset维护zookeeper中，consumer每间隔一段时间上报一次，这里容易导致重复消费，且性能不好！在新的版本中消费者消费到的offset已经直接维护在 kafka 集群的 __consumer_offsets 这个topic中！
+
+
+## kafka 的 ISR机制
+![](https://raw.githubusercontent.com/chenxh/interviews/master/08_middleware/imgs/kafka-isr.jpg "图片title")
+
+
+* AR (Assigned Replica): 分区中的所有副本统称为AR（某个池子在所有多元宇宙中的所有副本），AR=ISR+OSR。
+* ISR (In-Sync Replica): 所有与Leader副本保持一定程度同步的副本（包括Leader副本在内）组成ISR，ISR中的副本是可靠的，它们跟随Leader副本的进度。
+* OSR (Out-of-Sync Replica): 与Leader副本同步滞后过多的副本组成了OSR，这些副本可能由于网络故障或其他原因而无法与Leader保持同步。
+* LEO (Log End Offset): 每个副本都有内部的LEO，代表当前队列消息的最后一条偏移量offset，LEO是该副本消息日志的末尾​，LEO的大小相当于当前日志分区中最后一条消息的offset值加1。分区ISR集合中的每个副本都会维护自身的LEO，而ISR集合中最小的LEO即为分区的HW，对消费者而言只能消费HW之前的消息。（将要流进池子的最新消息的offset，也就是说LEO所对应的消息还并未写入）。
+* HW (High Watermark): 高水位代表所有ISR中的LEO最低的那个offset，它是消费者可见的最大消息offset，表示已经被所有ISR中的副本复制，HW表示数据在整个ISR中都得到了复制，是目前来说最可靠的数据。
+
+解释上图的意思，在Kafka中消息会先被发送到Leader中，然后Follower再从Leader中拉取消息进行同步，同步期间内Follower副本消息相对于Leader会有一定程度上的滞后。前面所说的“一定程度上的之后”是可以通过参数来配置的，在正常情况下所有的Follower都应与Leader保持一定程度的同步，AR=ISR，OSR为空。
+
+Partition副本消息复制流程：
+![](https://raw.githubusercontent.com/chenxh/interviews/master/08_middleware/imgs/kafka-isr1.jpg "图片title")
+
+
+假设ISR集合中有3个副本，Leader、Follower-1和Follower-2，此时分区LEO和HW都为2，消息3和4从生产者出发之后会先存入Leader副本。
+
+![](https://raw.githubusercontent.com/chenxh/interviews/master/08_middleware/imgs/kafka-isr2.jpg "图片title")
+消息写入Leader副本之后，由于Follower副本消费还未更新，所以HW依旧为2，而LEO为5说明下一条待写入的消息的offset为5。当Leader中3和4消息写入完毕之后，等待Follower-1和Follower-2来Leader中拉取增量数据。
+
+![](https://raw.githubusercontent.com/chenxh/interviews/master/08_middleware/imgs/kafka-isr3.jpg "图片title")
+在消息同步过程中，由于网络环境和硬件因素等不同，副本同步效率也不尽相同。如上图在某一时刻follower的消息只同步到了3，而Leader和Follower-1的消息最新为4，那么当前的HW则为3。
+
+![](https://raw.githubusercontent.com/chenxh/interviews/master/08_middleware/imgs/kafka-isr4.jpg "图片title")
+当所有的副本都成功写入了消息3和消息4，整个分区的HW=4，LEO=5。
+
+Kafka的Partition之间的复制机制既不是完全同步的复制，也不是单纯的异步复制。同步复制要求所有能够工作的副本都完成复制这条消息才算已经成功提交，这种方式极大的影响了性能。而在异步复制的方式下，Follower副本异步的从Leader副本中复制数据，数据只要被Leader写入副本就认为已经提交成功，这种情况下就存在如果Follower副本还没完全复制而落后于Leader副本而此时Leader副本突然宕机，则会造成数据丢失的情况发生。
