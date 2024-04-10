@@ -40,7 +40,8 @@
 ![缓存](https://raw.githubusercontent.com/chenxh/interviews/master/08_middleware/imgs/kafka_produce.png "图片title")
 Producer在写入数据的时候永远的找leader，不会直接将数据写入follower 。
 消息写入leader后，follower是主动的去leader进行同步的。
-producer采用push模式将数据发布到broker，每条消息追加到分区中，顺序写入磁盘，所以保证同一分区内的数据是有序的
+producer采用push模式将数据发布到broker，每条消息追加到分区中，顺序写入磁盘，所以保证同一分区内的数据是有序的.
+TODO: follower 如何知道数据写入 leader ，然后去拉取得？
 
 
 ***partition的优点***
