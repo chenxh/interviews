@@ -90,5 +90,25 @@ docker run --name web2 -d -p 80 --volumes-from vc_data httpd
 
 ```
 
+## docker 网络
+**none 网络**
+无网络， 用于完全隔离的安全容器场景。
+
+**host网络**
+
+连接到host网络的容器共享Docker host的网络栈，容器的网络配置与host完全一样。
+```
+docker run -it --network=host busybox
+```
+
+**bridge网络**
+
+Docker安装时会创建一个命名为docker0的Linux bridge。如果不指定--network，创建的容器默认都会挂到docker0上。
+
+```
+brctl show
+```
+
+容器内部的网卡和docker0 上挂载的 网卡配对，网络联通。
 
 
