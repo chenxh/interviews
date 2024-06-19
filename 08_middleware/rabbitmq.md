@@ -41,7 +41,7 @@ channel.queueBind(queueName, EXCHANGE_NAME, "");
 
 ## Routing
 * 根据 routingKey  判断消息发送到哪个对列， 一个队列可以接受一个或者多个 routingKey。
-* 定义一个 exchange， 多个queue。 exchange 的模式是 direct。队列绑定exchange，时指定 routeKey 。可指定多次。
+* 定义一个 exchange， 多个queue。 exchange 的模式是 direct。队列绑定exchange时指定 routeKey 。可指定多次。
 ```
 channel.exchangeDeclare(EXCHANGE_NAME, "direct");
 
